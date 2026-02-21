@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+coverage
+*.tsbuildinfo
+.pnpm-store
+
+# Project workflow directories (local only, never committed)
+_bmad/
+_bmad-output/
+.claude/
+.codex/
+docs/

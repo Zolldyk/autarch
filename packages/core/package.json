@@ -1,0 +1,17 @@
+{
+  "name": "@autarch/core",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@scure/bip39": "^2",
+    "@solana/kit": "^3",
+    "micro-key-producer": "^0.8"
+  }
+}
