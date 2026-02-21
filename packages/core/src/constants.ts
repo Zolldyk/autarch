@@ -7,3 +7,12 @@ export const DEMO_SEED =
 export const SOLANA_BIP44_COIN_TYPE = 501;
 export const DERIVATION_PURPOSE = 44;
 export const DEFAULT_CHANGE = 0;
+
+export const LAMPORTS_PER_SOL = 1_000_000_000;
+export const DEFAULT_RPC_URL = 'https://api.devnet.solana.com';
+
+/** Treasury wallet is always agentId 0 — BIP44 path m/44'/501'/0'/0'. */
+export const TREASURY_AGENT_ID = 0;
+
+/** Default airdrop amount: 1 SOL = 1_000_000_000 lamports. */
+export const DEFAULT_AIRDROP_LAMPORTS = 1_000_000_000n;
