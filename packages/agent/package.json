@@ -6,7 +6,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "test": "vitest run",
+    "test": "pnpm -C ../.. exec vitest run --project @autarch/agent",
     "lint": "eslint src/"
   },
   "dependencies": {
