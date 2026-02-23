@@ -15,7 +15,7 @@ import {
 import { getTransferSolInstruction } from '@solana-program/system';
 import { deriveKeypair } from './derivation.js';
 import { createRpcClient } from './rpc-client.js';
-import { DEFAULT_RPC_URL, TREASURY_AGENT_ID, DEFAULT_AIRDROP_LAMPORTS } from './constants.js';
+import { DEFAULT_RPC_URL, TREASURY_AGENT_ID, DEFAULT_AIRDROP_LAMPORTS, TREASURY_MIN_BALANCE_LAMPORTS } from './constants.js';
 import type { AgentWallet, AutarchWallet, Balance, TransactionResult, TransactionToSign, WalletConfig } from './types.js';
 
 /**
@@ -32,7 +32,11 @@ export function createAutarchWallet(config: WalletConfig): AutarchWallet {
   const agentCache = new Map<number, AgentWallet>();
   const agentPromiseCache = new Map<number, Promise<AgentWallet>>();
 
-  const rpcClient = createRpcClient({ rpcUrl: config.rpcUrl ?? DEFAULT_RPC_URL });
+  const rpcClient = createRpcClient({
+    rpcUrl: config.rpcUrl ?? DEFAULT_RPC_URL,
+    endpoints: config.rpcEndpoints,
+    onSimulationModeChange: config.onSimulationModeChange,
+  });
 
   function isNetworkFailure(message: string): boolean {
     const lower = message.toLowerCase();
@@ -83,22 +87,26 @@ export function createAutarchWallet(config: WalletConfig): AutarchWallet {
     try {
       const keypair = await getOrDeriveKeypair(agentId);
       const signer = await createSignerFromKeyPair(keypair);
-      const latestBlockhash = await rpcClient.getLatestBlockhash();
+      let signature = '';
+      const sendResult = await rpcClient.sendAndConfirm(async () => {
+        const freshBlockhash = await rpcClient.getLatestBlockhash();
+        const retryableMessage = pipe(
+          createTransactionMessage({ version: 0 }),
+          m => setTransactionMessageFeePayerSigner(signer, m),
+          m => setTransactionMessageLifetimeUsingBlockhash(freshBlockhash, m),
+          m => appendTransactionMessageInstructions(tx.instructions, m),
+        );
+        const signedTx = await signTransactionMessageWithSigners(retryableMessage);
+        assertIsTransactionWithinSizeLimit(signedTx);
+        signature = getSignatureFromTransaction(signedTx);
+        return signedTx;
+      }, { simulationLabel: `agent-${String(agentId)}` });
+      if (sendResult) {
+        return sendResult;
+      }
+      const mode = rpcClient.getConnectionMode();
 
-      const txMessage = pipe(
-        createTransactionMessage({ version: 0 }),
-        m => setTransactionMessageFeePayerSigner(signer, m),
-        m => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-        m => appendTransactionMessageInstructions(tx.instructions, m),
-      );
-
-      const signedTx = await signTransactionMessageWithSigners(txMessage);
-      assertIsTransactionWithinSizeLimit(signedTx);
-      const signature = getSignatureFromTransaction(signedTx);
-
-      await rpcClient.sendAndConfirm(signedTx);
-
-      return { signature, status: 'confirmed', mode: 'normal' as const };
+      return { signature, status: 'confirmed', mode };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       if (isNetworkFailure(message)) {
@@ -191,22 +199,26 @@ export function createAutarchWallet(config: WalletConfig): AutarchWallet {
         amount: amountLamports,
       });
 
-      const latestBlockhash = await rpcClient.getLatestBlockhash();
+      let signature = '';
+      const distResult = await rpcClient.sendAndConfirm(async () => {
+        const freshBlockhash = await rpcClient.getLatestBlockhash();
+        const retryableMessage = pipe(
+          createTransactionMessage({ version: 0 }),
+          m => setTransactionMessageFeePayerSigner(treasurySigner, m),
+          m => setTransactionMessageLifetimeUsingBlockhash(freshBlockhash, m),
+          m => appendTransactionMessageInstruction(transferInstruction, m),
+        );
+        const signedTx = await signTransactionMessageWithSigners(retryableMessage);
+        assertIsTransactionWithinSizeLimit(signedTx);
+        signature = getSignatureFromTransaction(signedTx);
+        return signedTx;
+      }, { simulationLabel: `agent-${String(toAgentId)}` });
+      if (distResult) {
+        return distResult;
+      }
+      const mode = rpcClient.getConnectionMode();
 
-      const txMessage = pipe(
-        createTransactionMessage({ version: 0 }),
-        m => setTransactionMessageFeePayerSigner(treasurySigner, m),
-        m => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-        m => appendTransactionMessageInstruction(transferInstruction, m),
-      );
-
-      const signedTx = await signTransactionMessageWithSigners(txMessage);
-      assertIsTransactionWithinSizeLimit(signedTx);
-      const signature = getSignatureFromTransaction(signedTx);
-
-      await rpcClient.sendAndConfirm(signedTx);
-
-      return { signature, status: 'confirmed', mode: 'normal' as const };
+      return { signature, status: 'confirmed', mode };
     } catch (error: unknown) {
       if (error instanceof Error && (error.message.includes('Cannot distribute') || error.message.includes('Distribution amount'))) {
         throw error;
@@ -236,6 +248,21 @@ export function createAutarchWallet(config: WalletConfig): AutarchWallet {
     if (amount <= 0n) {
       throw new Error('Airdrop amount must be greater than 0 lamports.');
     }
+
+    // FR31: Skip airdrop if treasury is already funded (only in non-simulation mode)
+    if (agentId === TREASURY_AGENT_ID && rpcClient.getConnectionMode() !== 'simulation') {
+      try {
+        const balance = await getBalance(agentId);
+        if (balance.lamports >= TREASURY_MIN_BALANCE_LAMPORTS) {
+          const solBalance = Number(balance.lamports) / 1_000_000_000;
+          console.log(`Treasury already funded (${solBalance.toFixed(2)} SOL), skipping airdrop`);
+          return 'skipped:treasury-funded';
+        }
+      } catch {
+        // Balance check failed — proceed with airdrop attempt (fail-open)
+      }
+    }
+
     const agentAddr = await getAddress(agentId);
     return rpcClient.requestAirdrop(agentAddr, amount);
   }
@@ -247,5 +274,8 @@ export function createAutarchWallet(config: WalletConfig): AutarchWallet {
     signTransaction: walletSignTransaction,
     distributeSol,
     requestAirdrop: walletRequestAirdrop,
+    cleanup(): void {
+      rpcClient.cleanup();
+    },
   });
 }

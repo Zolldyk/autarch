@@ -13,13 +13,13 @@ export interface TransactionToSign {
   readonly instructions: ReadonlyArray<Instruction>;
 }
 
-/** Connection mode for RPC operations. Epic 3 expands to 'normal' | 'degraded' | 'simulation'. */
-export type ConnectionMode = 'normal';
+/** Connection mode for RPC operations. */
+export type ConnectionMode = 'normal' | 'degraded' | 'simulation';
 
 /** Result of signing and submitting a transaction. */
 export interface TransactionResult {
   readonly signature: string;
-  readonly status: 'confirmed' | 'failed';
+  readonly status: 'confirmed' | 'failed' | 'simulated';
   readonly mode: ConnectionMode;
 }
 
@@ -43,15 +43,28 @@ export interface AutarchWallet {
   signTransaction(agentId: number, tx: TransactionToSign): Promise<TransactionResult>;
   distributeSol(toAgentId: number, amountLamports: bigint): Promise<TransactionResult>;
   requestAirdrop(agentId: number, amountLamports?: bigint): Promise<string>;
+  cleanup(): void;
 }
 
 /** Configuration for creating an AutarchWallet. */
 export interface WalletConfig {
   seed: Uint8Array;
   rpcUrl?: string;
+  rpcEndpoints?: readonly string[];
+  onSimulationModeChange?: (active: boolean, reason: string) => void;
 }
 
 /** Configuration for the RPC client. */
 export interface RpcConfig {
   rpcUrl?: string;
+  rpcEndpoints?: readonly string[];
+}
+
+/** Configuration for resilient RPC client behavior. */
+export interface ResilientRpcConfig extends RpcConfig {
+  endpoints?: readonly string[];
+  maxRetries?: number;
+  baseDelayMs?: number;
+  healthCheckIntervalMs?: number;
+  onSimulationModeChange?: (active: boolean, reason: string) => void;
 }

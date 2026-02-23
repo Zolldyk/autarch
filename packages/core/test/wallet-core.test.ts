@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { deriveKeypair } from '../src/derivation.js';
 import { getAddressFromPublicKey } from '@solana/kit';
-import { DEMO_SEED, TREASURY_AGENT_ID } from '../src/constants.js';
+import { DEMO_SEED, TREASURY_AGENT_ID, TREASURY_MIN_BALANCE_LAMPORTS } from '../src/constants.js';
 import type { WalletConfig, TransactionToSign } from '../src/types.js';
 
 const mockGetBalance = vi.fn();
 const mockGetLatestBlockhash = vi.fn();
 const mockSendAndConfirm = vi.fn();
 const mockRequestAirdrop = vi.fn();
+const mockGetConnectionMode = vi.fn<() => 'normal' | 'degraded' | 'simulation'>();
+const mockCleanup = vi.fn();
 
 vi.mock('../src/rpc-client.js', () => ({
   createRpcClient: vi.fn(() => ({
@@ -15,6 +17,8 @@ vi.mock('../src/rpc-client.js', () => ({
     getLatestBlockhash: mockGetLatestBlockhash,
     sendAndConfirm: mockSendAndConfirm,
     requestAirdrop: mockRequestAirdrop,
+    getConnectionMode: mockGetConnectionMode,
+    cleanup: mockCleanup,
   })),
 }));
 
@@ -39,6 +43,7 @@ vi.mock('@solana-program/system', () => ({
 }));
 
 const { createAutarchWallet } = await import('../src/wallet-core.js');
+const { createRpcClient } = await import('../src/rpc-client.js');
 
 function getDemoSeedBytes(): Uint8Array {
   const bytes = new Uint8Array(DEMO_SEED.length / 2);
@@ -59,20 +64,26 @@ describe('createAutarchWallet', () => {
       blockhash: 'mockBlockhash123',
       lastValidBlockHeight: 100n,
     });
-    mockSendAndConfirm.mockResolvedValue(undefined);
+    mockSendAndConfirm.mockImplementation(async (signedTxOrFactory: unknown) => {
+      if (typeof signedTxOrFactory === 'function') {
+        await (signedTxOrFactory as () => Promise<unknown>)();
+      }
+    });
     mockRequestAirdrop.mockResolvedValue('mockAirdropSignature123');
+    mockGetConnectionMode.mockReturnValue('normal');
+    mockCleanup.mockImplementation(() => {});
     mockSignTransactionMessageWithSigners.mockResolvedValue({ mock: 'signedTx' });
     mockGetSignatureFromTransaction.mockReturnValue('mockSignature123');
     mockAssertIsTransactionWithinSizeLimit.mockImplementation(() => {});
     mockGetTransferSolInstruction.mockReturnValue({ mock: 'transferInstruction' });
   });
 
-  // 5.2: returns object with exactly 6 methods (4 original + distributeSol + requestAirdrop)
-  it('returns an object with exactly 6 methods', () => {
+  // 5.2: returns object with exactly 7 methods (adds cleanup lifecycle hook)
+  it('returns an object with exactly 7 methods', () => {
     const wallet = createAutarchWallet(config);
     const keys = Object.keys(wallet).sort();
-    expect(keys).toEqual(['distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
-    expect(Object.getOwnPropertyNames(wallet).sort()).toEqual(['distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
+    expect(keys).toEqual(['cleanup', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
+    expect(Object.getOwnPropertyNames(wallet).sort()).toEqual(['cleanup', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
     expect(Object.getOwnPropertySymbols(wallet)).toHaveLength(0);
     expect(typeof wallet.getAgent).toBe('function');
     expect(typeof wallet.getAddress).toBe('function');
@@ -80,12 +91,31 @@ describe('createAutarchWallet', () => {
     expect(typeof wallet.signTransaction).toBe('function');
     expect(typeof wallet.distributeSol).toBe('function');
     expect(typeof wallet.requestAirdrop).toBe('function');
+    expect(typeof wallet.cleanup).toBe('function');
   });
 
   // 5.3: returned AutarchWallet is frozen
   it('returned AutarchWallet is frozen', () => {
     const wallet = createAutarchWallet(config);
     expect(Object.isFrozen(wallet)).toBe(true);
+  });
+
+  it('passes rpcEndpoints to createRpcClient when provided', () => {
+    const cfg: WalletConfig = {
+      seed,
+      rpcEndpoints: ['https://primary.example.com', 'https://secondary.example.com'],
+    };
+    createAutarchWallet(cfg);
+    expect(createRpcClient).toHaveBeenCalledWith({
+      rpcUrl: 'https://api.devnet.solana.com',
+      endpoints: ['https://primary.example.com', 'https://secondary.example.com'],
+    });
+  });
+
+  it('wallet cleanup forwards to rpc client cleanup', () => {
+    const wallet = createAutarchWallet(config);
+    wallet.cleanup();
+    expect(mockCleanup).toHaveBeenCalledOnce();
   });
 
   // 5.4: getAgent returns AgentWallet with address and signTransaction
@@ -213,6 +243,14 @@ describe('createAutarchWallet', () => {
     });
   });
 
+  it('signTransaction propagates degraded mode from RPC client', async () => {
+    mockGetConnectionMode.mockReturnValue('degraded');
+    const wallet = createAutarchWallet(config);
+    const tx: TransactionToSign = { instructions: [] };
+    const result = await wallet.signTransaction(0, tx);
+    expect(result.mode).toBe('degraded');
+  });
+
   // 8.5: signTransaction refreshes blockhash before signing
   it('signTransaction refreshes blockhash before signing (getLatestBlockhash called)', async () => {
     const wallet = createAutarchWallet(config);
@@ -290,6 +328,13 @@ describe('createAutarchWallet', () => {
         status: 'confirmed',
         mode: 'normal',
       });
+    });
+
+    it('distributeSol propagates degraded mode from RPC client', async () => {
+      mockGetConnectionMode.mockReturnValue('degraded');
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.distributeSol(1, 500_000_000n);
+      expect(result.mode).toBe('degraded');
     });
 
     // 7.3: uses treasury (agentId 0) as the signer — verify sendAndConfirm was called
@@ -380,6 +425,11 @@ describe('createAutarchWallet', () => {
 
   // === Task 8: requestAirdrop tests (AC: #3, #4) ===
   describe('requestAirdrop', () => {
+    // Set treasury balance below threshold so airdrop proceeds to RPC layer
+    beforeEach(() => {
+      mockGetBalance.mockResolvedValue({ lamports: 100_000_000n, sol: 0.1 });
+    });
+
     // 8.2: requestAirdrop(0) calls RPC with treasury address and default 1 SOL amount
     it('requestAirdrop(0) calls RPC with treasury address and default 1 SOL amount', async () => {
       const wallet = createAutarchWallet(config);
@@ -430,6 +480,145 @@ describe('createAutarchWallet', () => {
       const wallet = createAutarchWallet(config);
       await expect(wallet.requestAirdrop(0, 0n)).rejects.toThrow('Airdrop amount must be greater than 0 lamports');
       await expect(wallet.requestAirdrop(0, -1n)).rejects.toThrow('Airdrop amount must be greater than 0 lamports');
+    });
+  });
+
+  // === Story 3.3: Funded-treasury detection (FR31) ===
+  describe('funded-treasury detection (FR31)', () => {
+    it('skips airdrop when treasury balance >= TREASURY_MIN_BALANCE_LAMPORTS', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: 1_000_000_000n, sol: 1.0 });
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(0);
+      expect(result).toBe('skipped:treasury-funded');
+      expect(mockRequestAirdrop).not.toHaveBeenCalled();
+    });
+
+    it('returns "skipped:treasury-funded" string when skipped', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: TREASURY_MIN_BALANCE_LAMPORTS, sol: 0.5 });
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(0);
+      expect(result).toBe('skipped:treasury-funded');
+    });
+
+    it('logs message with SOL balance formatted to 2 decimal places', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: 750_000_000n, sol: 0.75 });
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const wallet = createAutarchWallet(config);
+      await wallet.requestAirdrop(0);
+      expect(consoleSpy).toHaveBeenCalledWith('Treasury already funded (0.75 SOL), skipping airdrop');
+      consoleSpy.mockRestore();
+    });
+
+    it('proceeds with airdrop when treasury balance < TREASURY_MIN_BALANCE_LAMPORTS', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: 100_000_000n, sol: 0.1 });
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(0);
+      expect(result).toBe('mockAirdropSignature123');
+      expect(mockRequestAirdrop).toHaveBeenCalled();
+    });
+
+    it('never checks balance for non-treasury agents (agentId !== 0)', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: 10_000_000_000n, sol: 10.0 });
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(1);
+      expect(result).toBe('mockAirdropSignature123');
+      expect(mockRequestAirdrop).toHaveBeenCalled();
+    });
+
+    it('proceeds with airdrop if getBalance throws (fail-open)', async () => {
+      mockGetBalance.mockRejectedValue(new Error('[RPC_NETWORK_ERROR] Connection refused'));
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(0);
+      expect(result).toBe('mockAirdropSignature123');
+      expect(mockRequestAirdrop).toHaveBeenCalled();
+    });
+
+    it('handles simulation mode — zero balance proceeds to simulated airdrop', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: 0n, sol: 0 });
+      mockRequestAirdrop.mockResolvedValue('sim-abc123');
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(0);
+      expect(result).toBe('sim-abc123');
+      expect(mockRequestAirdrop).toHaveBeenCalled();
+    });
+
+    it('does not skip airdrop in simulation mode (avoids cached balance check)', async () => {
+      mockGetConnectionMode.mockReturnValue('simulation');
+      mockGetBalance.mockResolvedValue({ lamports: 1_000_000_000n, sol: 1.0 });
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.requestAirdrop(0);
+      expect(result).toBe('mockAirdropSignature123');
+      expect(mockRequestAirdrop).toHaveBeenCalled();
+      expect(mockGetBalance).not.toHaveBeenCalled();
+    });
+  });
+
+  // === Story 3.2: Simulation mode propagation ===
+  describe('simulation mode propagation', () => {
+    it('walletSignTransaction propagates simulated status from RPC client', async () => {
+      mockSendAndConfirm.mockResolvedValue({
+        signature: 'sim-abc123_def456',
+        status: 'simulated',
+        mode: 'simulation',
+      });
+      const wallet = createAutarchWallet(config);
+      const tx: TransactionToSign = { instructions: [] };
+      const result = await wallet.signTransaction(0, tx);
+      expect(result.status).toBe('simulated');
+      expect(result.mode).toBe('simulation');
+      expect(result.signature).toBe('sim-abc123_def456');
+    });
+
+    it('walletSignTransaction returns confirmed in normal mode', async () => {
+      mockSendAndConfirm.mockImplementation(async (signedTxOrFactory: unknown) => {
+        if (typeof signedTxOrFactory === 'function') {
+          await (signedTxOrFactory as () => Promise<unknown>)();
+        }
+        // Return undefined (void) — normal mode
+        return undefined;
+      });
+      mockGetConnectionMode.mockReturnValue('normal');
+      const wallet = createAutarchWallet(config);
+      const tx: TransactionToSign = { instructions: [] };
+      const result = await wallet.signTransaction(0, tx);
+      expect(result.status).toBe('confirmed');
+      expect(result.mode).toBe('normal');
+    });
+
+    it('getBalance returns value in simulation mode without error', async () => {
+      mockGetBalance.mockResolvedValue({ lamports: 0n, sol: 0 });
+      mockGetConnectionMode.mockReturnValue('simulation');
+      const wallet = createAutarchWallet(config);
+      const balance = await wallet.getBalance(0);
+      expect(balance).toBeDefined();
+      expect(typeof balance.lamports).toBe('bigint');
+    });
+
+    it('distributeSol propagates simulated status from RPC client', async () => {
+      mockSendAndConfirm.mockResolvedValue({
+        signature: 'sim-dist_abc',
+        status: 'simulated',
+        mode: 'simulation',
+      });
+      const wallet = createAutarchWallet(config);
+      const result = await wallet.distributeSol(1, 500_000_000n);
+      expect(result.status).toBe('simulated');
+      expect(result.mode).toBe('simulation');
+      expect(result.signature).toBe('sim-dist_abc');
+    });
+
+    it('onSimulationModeChange callback passed through to RPC client', () => {
+      const callback = vi.fn();
+      const cfg: WalletConfig = {
+        seed,
+        onSimulationModeChange: callback,
+      };
+      createAutarchWallet(cfg);
+      expect(createRpcClient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          onSimulationModeChange: callback,
+        }),
+      );
     });
   });
 
