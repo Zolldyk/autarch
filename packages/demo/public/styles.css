@@ -1,0 +1,541 @@
+/* Autarch Dashboard — Design Tokens & Component Styles */
+
+:root {
+  /* Backgrounds */
+  --bg-primary: #0a0c10;
+  --bg-secondary: #14171c;
+  --bg-tertiary: #1e2228;
+
+  /* Text */
+  --text-primary: #e8eef2;
+  --text-secondary: #9aa5b5;
+  --text-tertiary: #6b7a8f;
+  --text-muted: var(--text-tertiary);
+
+  /* Accent */
+  --accent-blue: #4b9eff;
+  --accent-blue-hover: #6eb0ff;
+
+  /* Status */
+  --status-success: #34d399;
+  --status-warning: #fbbf24;
+  --status-danger: #f87171;
+  --status-info: #60a5fa;
+
+  /* Borders */
+  --border-subtle: #2a2f36;
+  --border-default: #3a4048;
+
+  /* Code */
+  --code-bg: #1a1e24;
+  --code-text: #c9d1d9;
+
+  /* Animation Speeds */
+  --speed-fast: 150ms;
+  --speed-normal: 200ms;
+  --speed-slow: 300ms;
+}
+
+/* Base */
+body {
+  min-width: 1024px;
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Font utilities */
+.font-sans {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Focus — WCAG: never suppress focus-visible */
+*:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Status Dot — 8px indicator circle */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-active  { background: var(--status-success); }
+.status-idle     { background: var(--status-warning); }
+.status-cooldown { background: var(--status-warning); }
+.status-error    { background: var(--status-danger); }
+.status-stopped  { background: var(--status-danger); }
+
+/* Pulse animation for active status */
+.status-dot-pulse {
+  animation: pulse var(--speed-slow) ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* Skeleton loading pulse */
+.skeleton-pulse {
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+@keyframes skeleton-shimmer {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 0.3; }
+}
+
+.skeleton-line {
+  height: 14px;
+  margin-bottom: 10px;
+}
+
+/* Agent card */
+.agent-card {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color var(--speed-fast), background var(--speed-fast);
+}
+
+.agent-card:hover {
+  border-color: var(--border-default);
+  background: var(--bg-tertiary);
+}
+
+.agent-card.selected {
+  border-color: var(--accent-blue);
+  background: var(--bg-secondary);
+}
+
+/* Explicit selection border class (AC6) */
+.border-accent-blue {
+  border-color: var(--accent-blue);
+}
+
+.agent-card.skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.agent-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
+.status-label {
+  color: var(--text-secondary);
+}
+
+.strategy-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.balance {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.last-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.action-time {
+  color: var(--text-tertiary);
+}
+
+/* Connection status indicator */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.connection-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.connection-connected    { background: var(--status-success); }
+.connection-reconnecting { background: var(--status-warning); }
+.connection-disconnected { background: var(--status-danger); }
+
+.connection-reconnecting.status-dot-pulse {
+  animation: pulse var(--speed-slow) ease-in-out infinite;
+}
+
+/* Live indicator in header */
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-success);
+  animation: pulse var(--speed-slow) ease-in-out infinite;
+}
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
+
+/* ── Activity Log Entries ─────────────────────────────────────────── */
+
+/* 1.1: Base log entry */
+.log-entry {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: default;
+  transition: background-color var(--speed-fast);
+}
+
+/* 1.2: Trade entry — clickable */
+.log-entry-trade {
+  cursor: pointer;
+}
+
+.log-entry-trade:hover {
+  background: var(--bg-tertiary);
+}
+
+/* 1.3: Trade entry selected state */
+.log-entry-trade.selected {
+  background: var(--code-bg);
+}
+
+/* 1.4: Hot-reload entry — blue tint background (only entry type with tint) */
+.log-entry-hotreload {
+  background: rgba(75, 158, 255, 0.05);
+}
+
+/* 1.5: Agent tag pill */
+.agent-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.agent-tag-1 {
+  background: var(--status-success);
+  color: var(--bg-primary);
+}
+
+.agent-tag-2 {
+  background: var(--accent-blue);
+  color: var(--bg-primary);
+}
+
+.agent-tag-3 {
+  background: var(--status-warning);
+  color: var(--bg-primary);
+}
+
+.agent-tag-system {
+  color: var(--text-tertiary);
+}
+
+.agent-tag-hotreload {
+  color: var(--accent-blue);
+}
+
+/* 1.6: Second line of trade entries */
+.log-entry-line2 {
+  padding-left: 24px;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* 1.7: Transaction signature link */
+.tx-link {
+  color: var(--accent-blue);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.tx-link:hover {
+  text-decoration: underline;
+}
+
+/* 1.8: Slide-in animation for new entries */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 1.9: New entry animation class */
+.log-entry-new {
+  animation: slideIn var(--speed-normal) ease-out;
+}
+
+/* ── Trace Panel ────────────────────────────────────────────────── */
+
+/* 1.1: Header */
+.trace-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* 1.2: Label */
+.trace-panel-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* 1.3: Agent name + timestamp */
+.trace-panel-agent {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* 1.4: Close button */
+.trace-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 8px;
+}
+
+.trace-panel-close:hover {
+  color: var(--text-primary);
+}
+
+/* 1.5: Body */
+.trace-panel-body {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 1.6: Tree view */
+.trace-tree-view {
+  padding: 16px 20px;
+  font-size: 0.875rem;
+}
+
+/* 1.7: Trace line */
+.trace-line {
+  line-height: 1.7;
+}
+
+/* 1.8: Pass indicator */
+.trace-pass {
+  color: var(--status-success);
+}
+
+/* 1.9: Fail indicator */
+.trace-fail {
+  color: var(--status-danger);
+}
+
+/* 1.10: Label */
+.trace-label {
+  color: var(--text-secondary);
+}
+
+/* 1.11: Value */
+.trace-value {
+  color: var(--text-primary);
+}
+
+/* 1.12: Action */
+.trace-action {
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+/* 1.13: JSON view */
+.trace-json-view {
+  background: var(--code-bg);
+  padding: 16px 20px;
+  overflow-x: auto;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* 1.14: JSON pre block */
+.trace-json-view pre {
+  font-size: 0.8125rem;
+  color: var(--code-text);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* 1.15: Footer */
+.trace-panel-footer {
+  padding: 8px 20px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 1.16: Toggle button */
+.trace-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 0;
+}
+
+.trace-toggle-btn:hover {
+  text-decoration: underline;
+}
+
+/* ── Toast Notifications ────────────────────────────────────────── */
+
+/* Toast base */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  min-width: 200px;
+  max-width: 360px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.toast-success .toast-icon {
+  color: var(--status-success);
+}
+
+.toast-error .toast-icon {
+  color: var(--status-danger);
+}
+
+.toast-info .toast-icon {
+  color: var(--status-info);
+}
+
+.toast-message {
+  flex: 1;
+}
+
+.toast-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+}
+
+.toast-dismiss:hover {
+  color: var(--text-primary);
+}
+
+/* ── Market Control Enhancements ───────────────────────────────── */
+
+.market-sim-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge.cursor-pointer:hover {
+  background: var(--border-default);
+  color: var(--text-primary);
+}
+
+.badge.cursor-pointer:active {
+  transform: scale(0.97);
+}
+
+/* Market control buttons — AC7 secondary tier sizing */
+.market-btn {
+  font-size: 0.875rem;
+  padding: 4px 12px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}

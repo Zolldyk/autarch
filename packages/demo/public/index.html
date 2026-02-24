@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autarch Dashboard</title>
+
+  <!-- Google Fonts: Inter + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Tailwind v4 browser CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- Custom design tokens & component styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="max-w-6xl mx-auto px-4 py-4">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-4">
+        <div>
+          <h1 class="font-sans text-xl font-semibold tracking-tight" style="color: var(--text-primary)">AUTARCH</h1>
+          <p class="text-sm" style="color: var(--text-secondary)">Autonomous Agent Wallets</p>
+        </div>
+        <div class="flex items-center gap-2 ml-4">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="text-xs font-semibold" style="color: var(--status-success)">LIVE</span>
+        </div>
+        <span class="badge">devnet</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span id="mode-badge" class="badge" style="color: var(--status-success); border-color: var(--status-success)">DEVNET</span>
+        <div id="connection-indicator" class="connection-status">
+          <span class="connection-dot connection-disconnected" aria-hidden="true"></span>
+          <span class="connection-label" style="color: var(--text-secondary)">Connecting…</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Market Controls -->
+      <section aria-label="Market Controls" class="mb-6">
+        <div class="flex items-center gap-3">
+          <span class="market-sim-label">Market Sim</span>
+          <button id="btn-dip" class="badge cursor-pointer market-btn" style="color: var(--status-danger)" aria-label="Simulate market dip">↓ DIP -5%</button>
+          <button id="btn-rally" class="badge cursor-pointer market-btn" style="color: var(--status-success)" aria-label="Simulate market rally">↑ RALLY +10%</button>
+          <button id="btn-reset" class="badge cursor-pointer market-btn" aria-label="Reset market">⟲ RESET</button>
+          <span id="market-price" class="font-mono text-sm ml-4" style="color: var(--text-secondary)">SOL/USD: —</span>
+        </div>
+      </section>
+
+      <!-- Agent Cards -->
+      <section aria-label="Agent Overview" class="mb-6">
+        <div id="agent-cards" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+          <!-- Skeleton loading cards (replaced on first SSE stateUpdate) -->
+          <div class="agent-card skeleton" aria-hidden="true">
+            <div class="skeleton-line skeleton-pulse" style="width: 60%"></div>
+            <div class="skeleton-line skeleton-pulse" style="width: 40%"></div>
+            <div class="skeleton-line skeleton-pulse" style="width: 80%"></div>
+          </div>
+          <div class="agent-card skeleton" aria-hidden="true">
+            <div class="skeleton-line skeleton-pulse" style="width: 60%"></div>
+            <div class="skeleton-line skeleton-pulse" style="width: 40%"></div>
+            <div class="skeleton-line skeleton-pulse" style="width: 80%"></div>
+          </div>
+          <div class="agent-card skeleton" aria-hidden="true">
+            <div class="skeleton-line skeleton-pulse" style="width: 60%"></div>
+            <div class="skeleton-line skeleton-pulse" style="width: 40%"></div>
+            <div class="skeleton-line skeleton-pulse" style="width: 80%"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Activity Log -->
+      <section aria-label="Activity Log" class="mb-6">
+        <div id="activity-log" aria-live="polite">
+          <p class="empty-state">Activity will appear here when agents start.</p>
+        </div>
+      </section>
+
+      <!-- Reasoning Trace Panel -->
+      <section id="trace-panel" role="region" aria-label="Reasoning Trace" hidden>
+        <!-- Populated by Story 4.4 -->
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="flex items-center justify-between text-xs py-4" style="color: var(--text-tertiary); border-top: 1px solid var(--border-subtle);">
+      <span id="footer-version">v0.0.0</span>
+      <span class="badge">devnet</span>
+      <span id="footer-agents">0 agents</span>
+      <span id="footer-uptime" class="font-mono">↑ 00:00:00</span>
+      <span id="footer-countdown" class="font-mono">Next: —</span>
+    </footer>
+
+    <div id="toast-container" aria-live="polite" style="position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px;"></div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
