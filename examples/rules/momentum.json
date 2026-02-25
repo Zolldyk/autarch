@@ -1,0 +1,40 @@
+{
+  "name": "Momentum",
+  "strategy": "Follow the Pack",
+  "intervalMs": 5000,
+  "rules": [
+    {
+      "name": "Follow conservative buy with momentum",
+      "conditions": [
+        { "field": "peer.Conservative.last_action", "operator": "==", "threshold": "buy", "logic": "AND" },
+        { "field": "price_change", "operator": ">", "threshold": 3, "logic": "AND" }
+      ],
+      "action": "buy",
+      "amount": 0.05,
+      "weight": 80,
+      "cooldownSeconds": 15
+    },
+    {
+      "name": "Contrarian sell on peer inactivity",
+      "conditions": [
+        { "field": "peer.Conservative.last_action", "operator": "==", "threshold": "buy", "logic": "NOT" },
+        { "field": "price_drop", "operator": ">", "threshold": 2, "logic": "AND" }
+      ],
+      "action": "sell",
+      "amount": 0.03,
+      "weight": 75,
+      "cooldownSeconds": 20
+    },
+    {
+      "name": "Momentum surge",
+      "conditions": [
+        { "field": "price_change", "operator": ">", "threshold": 8, "logic": "AND" },
+        { "field": "volume_spike", "operator": ">", "threshold": 150, "logic": "AND" }
+      ],
+      "action": "buy",
+      "amount": 0.04,
+      "weight": 80,
+      "cooldownSeconds": 30
+    }
+  ]
+}

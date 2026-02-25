@@ -7,6 +7,9 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "start": "npm run demo",
+    "demo": "pnpm run build && pnpm -F @autarch/demo start",
+    "interactive": "DEMO_MODE=true pnpm run build && pnpm -F @autarch/demo start:interactive",
     "test": "vitest run",
     "lint": "eslint packages/*/src/",
     "typecheck": "tsc --noEmit"

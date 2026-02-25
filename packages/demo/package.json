@@ -6,6 +6,8 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc --build",
+    "start": "node dist/demo-scenario.js",
+    "start:interactive": "node dist/interactive.js",
     "test": "vitest run",
     "lint": "eslint src/"
   },

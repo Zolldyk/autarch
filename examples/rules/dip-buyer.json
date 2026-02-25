@@ -1,0 +1,40 @@
+{
+  "name": "Dip Buyer",
+  "strategy": "Buy the Dip",
+  "intervalMs": 5000,
+  "rules": [
+    {
+      "name": "Smart dip buyer",
+      "conditions": [
+        { "field": "price_drop", "operator": ">", "threshold": 5, "logic": "AND" },
+        { "field": "volume_spike", "operator": ">", "threshold": 200, "logic": "AND" },
+        { "field": "position_size", "operator": "<", "threshold": 50, "logic": "AND" }
+      ],
+      "action": "buy",
+      "amount": 0.02,
+      "weight": 50,
+      "cooldownSeconds": 60
+    },
+    {
+      "name": "Extreme opportunity buyer",
+      "conditions": [
+        { "field": "price_drop", "operator": ">", "threshold": 10, "logic": "OR" },
+        { "field": "volume_spike", "operator": ">", "threshold": 300, "logic": "OR" }
+      ],
+      "action": "buy",
+      "amount": 0.02,
+      "weight": 40,
+      "cooldownSeconds": 45
+    },
+    {
+      "name": "Take profit on rally",
+      "conditions": [
+        { "field": "price_rise", "operator": ">", "threshold": 7 }
+      ],
+      "action": "sell",
+      "amount": 0.02,
+      "weight": 75,
+      "cooldownSeconds": 90
+    }
+  ]
+}

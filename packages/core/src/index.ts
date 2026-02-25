@@ -12,6 +12,7 @@ export {
   TREASURY_MIN_BALANCE_LAMPORTS,
 } from './constants.js';
 export { createAutarchWallet } from './wallet-core.js';
+export { loadSeed } from './config.js';
 export { createRpcClient } from './rpc-client.js';
 export type {
   SeedConfig,

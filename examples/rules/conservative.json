@@ -1,0 +1,27 @@
+{
+  "name": "Conservative",
+  "strategy": "Low Risk",
+  "intervalMs": 5000,
+  "rules": [
+    {
+      "name": "Buy on significant dip",
+      "conditions": [
+        { "field": "price_drop", "operator": ">", "threshold": 5 }
+      ],
+      "action": "buy",
+      "amount": 0.01,
+      "weight": 75,
+      "cooldownSeconds": 120
+    },
+    {
+      "name": "Sell on strong rally",
+      "conditions": [
+        { "field": "price_rise", "operator": ">", "threshold": 8 }
+      ],
+      "action": "sell",
+      "amount": 0.01,
+      "weight": 75,
+      "cooldownSeconds": 180
+    }
+  ]
+}
