@@ -124,6 +124,22 @@ export function formatValidationErrors(errors: ErrorObject[]): string[] {
  *
  * @param data - Unknown data to validate (typically parsed JSON)
  * @returns Discriminated union: `{ valid: true, config }` or `{ valid: false, errors }`
+ *
+ * @example
+ * ```typescript
+ * import { validateAgentConfig } from '@autarch/agent';
+ *
+ * const result = validateAgentConfig({
+ *   name: 'my-agent',
+ *   strategy: 'conservative',
+ *   rules: [{ name: 'buy-dip', conditions: [{ field: 'priceChange1m', operator: '<', threshold: -3 }], action: 'buy', amount: 0.1, weight: 80, cooldownSeconds: 60 }],
+ * });
+ * if (result.valid) {
+ *   console.log(result.config.name); // 'my-agent'
+ * } else {
+ *   console.error(result.errors);
+ * }
+ * ```
  */
 export function validateAgentConfig(
   data: unknown,

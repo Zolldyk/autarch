@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateAgentConfig } from '../src/schema.js';
+import { validateAgentConfig, formatValidationErrors } from '../src/schema.js';
+import type { ErrorObject } from 'ajv';
 
 /** Minimal valid config for reuse across tests. */
 function validConfig() {
@@ -332,5 +333,129 @@ describe('validateAgentConfig', () => {
         expect.arrayContaining([expect.stringMatching(/rules\[0\]\.conditions\[1\]\.operator/)]),
       );
     }
+  });
+});
+
+// ─── formatValidationErrors Tests ─────────────────────────────────────
+
+describe('formatValidationErrors', () => {
+  /** Helper to create a minimal ajv ErrorObject for testing. */
+  function makeError(overrides: Partial<ErrorObject> & { keyword: string; params: Record<string, unknown> }): ErrorObject {
+    return {
+      instancePath: '',
+      schemaPath: '#/required',
+      message: 'is invalid',
+      ...overrides,
+    } as ErrorObject;
+  }
+
+  it('formats "required" keyword at root level', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'required', instancePath: '', params: { missingProperty: 'name' } }),
+    ]);
+    expect(errors).toEqual(['Missing required property: name']);
+  });
+
+  it('formats "required" keyword at nested path', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'required', instancePath: '/rules/0', params: { missingProperty: 'action' } }),
+    ]);
+    expect(errors).toEqual(['Missing required property: rules[0].action']);
+  });
+
+  it('formats "enum" keyword with allowed values', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'enum', instancePath: '/rules/0/action', params: { allowedValues: ['buy', 'sell', 'none'] } }),
+    ]);
+    expect(errors).toEqual(['rules[0].action must be one of: buy, sell, none']);
+  });
+
+  it('formats "minItems" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'minItems', instancePath: '/rules', params: { limit: 1 } }),
+    ]);
+    expect(errors).toEqual(['rules must have at least 1 item(s)']);
+  });
+
+  it('formats "minLength" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'minLength', instancePath: '/name', params: { limit: 1 } }),
+    ]);
+    expect(errors).toEqual(['name must not be empty']);
+  });
+
+  it('formats "minimum" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'minimum', instancePath: '/intervalMs', params: { limit: 1000 } }),
+    ]);
+    expect(errors).toEqual(['intervalMs must be >= 1000']);
+  });
+
+  it('formats "exclusiveMinimum" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'exclusiveMinimum', instancePath: '/rules/0/amount', params: { limit: 0 } }),
+    ]);
+    expect(errors).toEqual(['rules[0].amount must be > 0']);
+  });
+
+  it('formats "maximum" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'maximum', instancePath: '/rules/0/weight', params: { limit: 100 } }),
+    ]);
+    expect(errors).toEqual(['rules[0].weight must be <= 100']);
+  });
+
+  it('formats "type" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'type', instancePath: '/name', params: { type: 'string' } }),
+    ]);
+    expect(errors).toEqual(['name must be of type string']);
+  });
+
+  it('formats "additionalProperties" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'additionalProperties', instancePath: '', params: { additionalProperty: 'extra' } }),
+    ]);
+    expect(errors).toEqual([' has unknown property: extra']);
+  });
+
+  it('formats "oneOf" keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'oneOf', instancePath: '/rules/0/conditions/0/threshold', params: {} }),
+    ]);
+    expect(errors).toEqual(['rules[0].conditions[0].threshold must be a number or string']);
+  });
+
+  it('uses fallback for unknown keyword', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'pattern', instancePath: '/name', params: { pattern: '^[a-z]+$' }, message: 'must match pattern' }),
+    ]);
+    expect(errors).toEqual(['name must match pattern']);
+  });
+
+  it('handles fallback when message is undefined', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'custom', instancePath: '/field', params: {}, message: undefined }),
+    ]);
+    expect(errors).toEqual(['field is invalid']);
+  });
+
+  it('formats multiple errors at once', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'required', instancePath: '', params: { missingProperty: 'name' } }),
+      makeError({ keyword: 'minItems', instancePath: '/rules', params: { limit: 1 } }),
+      makeError({ keyword: 'type', instancePath: '/strategy', params: { type: 'string' } }),
+    ]);
+    expect(errors).toHaveLength(3);
+    expect(errors[0]).toContain('Missing required property: name');
+    expect(errors[1]).toContain('rules must have at least 1 item');
+    expect(errors[2]).toContain('strategy must be of type string');
+  });
+
+  it('formats deeply nested condition paths correctly', () => {
+    const errors = formatValidationErrors([
+      makeError({ keyword: 'enum', instancePath: '/rules/2/conditions/1/operator', params: { allowedValues: ['>', '<'] } }),
+    ]);
+    expect(errors).toEqual(['rules[2].conditions[1].operator must be one of: >, <']);
   });
 });

@@ -19,10 +19,17 @@ import { DEFAULT_RPC_URL, TREASURY_AGENT_ID, DEFAULT_AIRDROP_LAMPORTS, TREASURY_
 import type { AgentWallet, AutarchWallet, Balance, TransactionResult, TransactionToSign, WalletConfig } from './types.js';
 
 /**
- * Create an AutarchWallet with closure-based key isolation.
+ * Create an AutarchWallet with closure-based key isolation. Private keys are
+ * trapped in closure scope — the returned frozen object exposes only address, balance, and signing methods.
+ * @param config - Wallet configuration containing the seed and optional RPC settings.
+ * @returns A frozen AutarchWallet with agent derivation, balance, signing, and distribution methods.
  *
- * Private keys are trapped in closure scope — the returned frozen object
- * exposes only address, balance, and signing methods. No prototype chain leads to key material.
+ * @example
+ * ```typescript
+ * import { createAutarchWallet, loadSeed } from '@autarch/core';
+ * const wallet = createAutarchWallet({ seed: loadSeed() });
+ * const agent = await wallet.getAgent(1);
+ * ```
  */
 export function createAutarchWallet(config: WalletConfig): AutarchWallet {
   // Snapshot seed bytes to prevent post-construction external mutation.

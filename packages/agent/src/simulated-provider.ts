@@ -122,7 +122,19 @@ export class SimulatedMarketDataProvider implements MarketDataProvider {
     this.buildAndPushInjected();
   }
 
-  /** Reset price to the initial baseline and clear history. */
+  /**
+   * Reset price to the initial baseline and clear all history.
+   *
+   * Restores the provider to its initial state: price returns to baselinePrice,
+   * volume returns to DEFAULT_BASE_VOLUME, and the history ring buffer is emptied.
+   *
+   * @example
+   * ```typescript
+   * const provider = new SimulatedMarketDataProvider({ baselinePrice: 100 });
+   * provider.injectDip(20);
+   * provider.resetToBaseline(); // price back to 100, history cleared
+   * ```
+   */
   resetToBaseline(): void {
     this.price = this.baselinePrice;
     this.history = [];

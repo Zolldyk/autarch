@@ -10,6 +10,15 @@ import { DEMO_SEED } from './constants.js';
  * 2. MASTER_SEED matching hex pattern → raw hex seed
  * 3. DEMO_MODE=true → built-in demo seed
  * 4. Otherwise → crash with NFR30-compliant error
+ *
+ * @returns 64-byte Uint8Array seed for HD key derivation
+ *
+ * @example
+ * ```typescript
+ * import { loadSeed } from '@autarch/core';
+ * process.env.DEMO_MODE = 'true';
+ * const seed = loadSeed(); // Uint8Array(64)
+ * ```
  */
 export function loadSeed(): Uint8Array {
   const masterSeedRaw = process.env.MASTER_SEED;

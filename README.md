@@ -75,7 +75,7 @@ Start with the 2-minute steps above, then explore:
 
 4. **Customize agent rules** — Edit the JSON configs in `examples/rules/` to define your own strategies. See [`examples/rules/README.md`](examples/rules/README.md) for the full field reference — conditions, weighted scoring, compound logic, and inter-agent dependencies.
 
-5. **Go deeper** — See [SKILLS.md](SKILLS.md) for full API documentation (coming soon).
+5. **Go deeper** — See [SKILLS.md](SKILLS.md) for full API documentation.
 
 ---
 
@@ -124,6 +124,6 @@ pnpm run typecheck    # Type checking without emit
 
 ## Further Reading
 
-- [SKILLS.md](SKILLS.md) — Machine-readable API documentation (coming soon)
-- [SECURITY.md](SECURITY.md) — Verifiable security claims with proofs (coming soon)
-- [DEEP-DIVE.md](DEEP-DIVE.md) — Architecture deep-dive (coming soon)
+- [SKILLS.md](SKILLS.md) — Machine-readable API documentation
+- [SECURITY.md](SECURITY.md) — Verifiable security claims with proofs
+- [DEEP-DIVE.md](DEEP-DIVE.md) — Architecture, "Why Not LLMs?", and production path

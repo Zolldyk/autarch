@@ -32,6 +32,14 @@ function applyDefaults(config: AgentConfig): AgentConfig {
  * @param filePath - Absolute or relative path to the JSON config file
  * @returns Parsed and validated AgentConfig with defaults applied
  * @throws Error if the file cannot be read, contains invalid JSON, or fails schema validation
+ *
+ * @example
+ * ```typescript
+ * import { loadAgentConfig } from '@autarch/agent';
+ *
+ * const config = await loadAgentConfig('examples/rules/conservative.json');
+ * console.log(config.name, config.rules.length);
+ * ```
  */
 export async function loadAgentConfig(filePath: string): Promise<AgentConfig> {
   let raw: string;

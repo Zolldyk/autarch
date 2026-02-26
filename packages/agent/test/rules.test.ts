@@ -1090,4 +1090,219 @@ describe('evaluateAllRules — Edge Cases', () => {
   });
 });
 
+// ─── CooldownTracker Direct Unit Tests ──────────────────────────────────
+
+describe('CooldownTracker — Direct Unit Tests', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('tracks multiple independent rules with separate cooldowns', () => {
+    const tracker = new CooldownTracker();
+    vi.setSystemTime(0);
+    tracker.recordExecution(0);
+
+    vi.setSystemTime(10_000);
+    tracker.recordExecution(1);
+
+    vi.setSystemTime(40_000);
+    // Rule 0: 40s into cooldown. Rule 1: 30s into cooldown.
+    expect(tracker.isOnCooldown(0, 60).active).toBe(true);
+    expect(tracker.isOnCooldown(0, 60).remainingMs).toBe(20_000);
+    expect(tracker.isOnCooldown(1, 60).active).toBe(true);
+    expect(tracker.isOnCooldown(1, 60).remainingMs).toBe(30_000);
+  });
+
+  it('re-recording execution resets the cooldown timer', () => {
+    const tracker = new CooldownTracker();
+    vi.setSystemTime(0);
+    tracker.recordExecution(0);
+
+    vi.setSystemTime(50_000); // 50s into 60s cooldown
+    expect(tracker.isOnCooldown(0, 60).active).toBe(true);
+
+    // Re-record — restarts cooldown
+    tracker.recordExecution(0);
+    vi.setSystemTime(100_000); // 50s after re-record
+    expect(tracker.isOnCooldown(0, 60).active).toBe(true);
+    expect(tracker.isOnCooldown(0, 60).remainingMs).toBe(10_000);
+  });
+
+  it('isOnCooldown with different cooldownSeconds on same rule', () => {
+    const tracker = new CooldownTracker();
+    vi.setSystemTime(0);
+    tracker.recordExecution(0);
+
+    vi.setSystemTime(30_000);
+    // Short cooldown (20s) → expired
+    expect(tracker.isOnCooldown(0, 20).active).toBe(false);
+    // Long cooldown (60s) → still active
+    expect(tracker.isOnCooldown(0, 60).active).toBe(true);
+  });
+
+  it('handles large rule indices', () => {
+    const tracker = new CooldownTracker();
+    vi.setSystemTime(0);
+    tracker.recordExecution(999);
+
+    vi.setSystemTime(1);
+    expect(tracker.isOnCooldown(999, 60).active).toBe(true);
+    expect(tracker.isOnCooldown(998, 60).active).toBe(false);
+  });
+});
+
+// ─── evaluateAllRules — Tied Weights & Mixed Actions ────────────────────
+
+describe('evaluateAllRules — Tied Weights', () => {
+  it('two actions with identical total weight — first action in iteration order wins', () => {
+    const tracker = new CooldownTracker();
+    const rules: Rule[] = [
+      makeRule({ name: 'Buy', action: 'buy', weight: 80, conditions: [{ field: 'price_drop', operator: '>', threshold: 3 }] }),
+      makeRule({ name: 'Sell', action: 'sell', weight: 80, conditions: [{ field: 'volume_spike', operator: '>', threshold: 100 }] }),
+    ];
+    const ctx = makeContext({
+      marketData: { priceChange1m: -10, volumeChange1m: 200 },
+      rules,
+    });
+
+    const result = evaluateAllRules(ctx, tracker);
+    // Both have weight 80. The Map iteration preserves insertion order,
+    // so 'buy' (inserted first) wins the tie.
+    expect(result.decision.action).toBe('buy');
+    expect(result.decision.score).toBe(80);
+  });
+
+  it('three buy rules with low weights summing above threshold', () => {
+    const tracker = new CooldownTracker();
+    const rules: Rule[] = [
+      makeRule({ name: 'Buy A', action: 'buy', weight: 25, conditions: [{ field: 'price_drop', operator: '>', threshold: 1 }] }),
+      makeRule({ name: 'Buy B', action: 'buy', weight: 25, conditions: [{ field: 'volume_spike', operator: '>', threshold: 50 }] }),
+      makeRule({ name: 'Buy C', action: 'buy', weight: 25, conditions: [{ field: 'balance', operator: '>', threshold: 0 }] }),
+    ];
+    const ctx = makeContext({
+      marketData: { priceChange1m: -5, volumeChange1m: 100 },
+      agentState: { balance: 5.0 },
+      rules,
+    });
+
+    const result = evaluateAllRules(ctx, tracker);
+    expect(result.decision.action).toBe('buy');
+    expect(result.decision.score).toBe(75);
+  });
+
+  it('all matched rules have action none → decision is none with explanation', () => {
+    const tracker = new CooldownTracker();
+    const rules: Rule[] = [
+      makeRule({ name: 'Noop A', action: 'none', weight: 90, conditions: [{ field: 'price_drop', operator: '>', threshold: 1 }] }),
+      makeRule({ name: 'Noop B', action: 'none', weight: 80, conditions: [{ field: 'volume_spike', operator: '>', threshold: 50 }] }),
+    ];
+    const ctx = makeContext({
+      marketData: { priceChange1m: -5, volumeChange1m: 100 },
+      rules,
+    });
+
+    const result = evaluateAllRules(ctx, tracker);
+    expect(result.decision.action).toBe('none');
+    expect(result.decision.reason).toContain('No actionable rules matched');
+  });
+
+  it('bestRule tracks highest individual weight within winning action', () => {
+    const tracker = new CooldownTracker();
+    const rules: Rule[] = [
+      makeRule({ name: 'Weak Buy', action: 'buy', weight: 30, amount: 0.05, conditions: [{ field: 'price_drop', operator: '>', threshold: 1 }] }),
+      makeRule({ name: 'Strong Buy', action: 'buy', weight: 50, amount: 0.5, conditions: [{ field: 'volume_spike', operator: '>', threshold: 50 }] }),
+    ];
+    const ctx = makeContext({
+      marketData: { priceChange1m: -5, volumeChange1m: 100 },
+      agentState: { balance: 5.0 },
+      rules,
+    });
+
+    const result = evaluateAllRules(ctx, tracker);
+    expect(result.decision.action).toBe('buy');
+    expect(result.decision.score).toBe(80); // 30 + 50
+    // Best rule is "Strong Buy" (weight 50 > 30), so amount should be 0.5
+    expect(result.decision.amount).toBe(0.5);
+    expect(result.decision.ruleName).toBe('Strong Buy');
+  });
+});
+
+// ─── Peer Field Resolution Tests ─────────────────────────────────────────
+
+describe('resolveField — peer fields', () => {
+  it('resolves peer.Name.balance via case-insensitive name match', () => {
+    const ctx = makeContext({
+      peerStates: [
+        makeAgentState({ agentId: 2, name: 'AgentAlpha', balance: 3.5 }),
+      ],
+    });
+    expect(resolveField('peer.agentalpha.balance', ctx)).toBe(3.5);
+  });
+
+  it('resolves peer by numeric agentId', () => {
+    const ctx = makeContext({
+      peerStates: [
+        makeAgentState({ agentId: 5, name: 'AgentBeta', status: 'active' }),
+      ],
+    });
+    expect(resolveField('peer.5.status', ctx)).toBe('active');
+  });
+
+  it('returns 0 for unknown peer name', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ctx = makeContext({
+      peerStates: [
+        makeAgentState({ agentId: 1, name: 'Known' }),
+      ],
+    });
+    expect(resolveField('peer.Unknown.balance', ctx)).toBe(0);
+    warnSpy.mockRestore();
+  });
+
+  it('returns 0 for malformed peer field (too few parts)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ctx = makeContext();
+    expect(resolveField('peer.onlyTwo', ctx)).toBe(0);
+    warnSpy.mockRestore();
+  });
+
+  it('returns 0 when no peerStates available', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ctx = makeContext({ peerStates: [] });
+    expect(resolveField('peer.Agent.balance', ctx)).toBe(0);
+    warnSpy.mockRestore();
+  });
+
+  it('returns 0 for unknown peer subField', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ctx = makeContext({
+      peerStates: [makeAgentState({ agentId: 1, name: 'Agent' })],
+    });
+    expect(resolveField('peer.Agent.unknown_field', ctx)).toBe(0);
+    warnSpy.mockRestore();
+  });
+
+  it('resolves peer.Name.last_action from lastAction field', () => {
+    const ctx = makeContext({
+      peerStates: [
+        makeAgentState({ agentId: 1, name: 'Peer1', lastAction: 'sell 0.5 SOL' }),
+      ],
+    });
+    expect(resolveField('peer.Peer1.last_action', ctx)).toBe('sell');
+  });
+
+  it('resolves peer.Name.consecutive_wins', () => {
+    const ctx = makeContext({
+      peerStates: [
+        makeAgentState({ agentId: 1, name: 'Winner', consecutiveWins: 7 }),
+      ],
+    });
+    expect(resolveField('peer.Winner.consecutive_wins', ctx)).toBe(7);
+  });
+});
+
 // Agent.tick() integration tests are in agent.test.ts

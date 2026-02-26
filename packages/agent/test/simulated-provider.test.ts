@@ -498,4 +498,131 @@ describe('SimulatedMarketDataProvider', () => {
     expect(() => new SimulatedMarketDataProvider({ maxHistorySize: -1 })).toThrow(RangeError);
     expect(() => new SimulatedMarketDataProvider({ maxHistorySize: Number.NaN })).toThrow(RangeError);
   });
+
+  // --- Edge Cases: Extreme injections ---
+
+  it('should clamp to MIN_PRICE on injectDip(100)', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider();
+    provider.getCurrentData(); // price = 100
+
+    provider.injectDip(100); // 100% drop → price * 0 = 0 → clamped to MIN_PRICE
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBe(MIN_PRICE);
+  });
+
+  it('should handle injectDip with percent > 100 gracefully (clamps to MIN_PRICE)', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider();
+    provider.getCurrentData();
+
+    provider.injectDip(200); // 200% drop → price * -1 = -100 → clamped to MIN_PRICE
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBe(MIN_PRICE);
+  });
+
+  it('should handle rapid consecutive dips', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider();
+    provider.getCurrentData(); // price = 100
+
+    provider.injectDip(10); // 90
+    provider.injectDip(10); // 81
+    provider.injectDip(10); // 72.9
+
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBeCloseTo(72.9, 1);
+  });
+
+  it('should handle rapid consecutive rallies', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider();
+    provider.getCurrentData(); // price = 100
+
+    provider.injectRally(10); // 110
+    provider.injectRally(10); // 121
+    provider.injectRally(10); // 133.1
+
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBeCloseTo(133.1, 1);
+  });
+
+  it('should handle injectRally that overshoots MAX_PRICE', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider({ baselinePrice: 9000 });
+    provider.getCurrentData(); // price = 9000
+
+    provider.injectRally(50); // 13500 → clamped to MAX_PRICE
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBe(MAX_PRICE);
+  });
+
+  it('should return empty array from getHistory when history is empty', () => {
+    const provider = new SimulatedMarketDataProvider();
+    expect(provider.getHistory()).toEqual([]);
+    expect(provider.getHistory(5)).toEqual([]);
+  });
+
+  it('should return snapshot with base price when no history exists', () => {
+    const provider = new SimulatedMarketDataProvider({ baselinePrice: 250 });
+    const snapshot = provider.getSnapshot();
+    expect(snapshot.price).toBe(250);
+    expect(snapshot.priceChange1m).toBe(0);
+    expect(snapshot.source).toBe('simulated');
+  });
+
+  it('should handle maxHistorySize of 1', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider({ maxHistorySize: 1 });
+
+    provider.getCurrentData();
+    provider.getCurrentData();
+    provider.getCurrentData();
+
+    expect(provider.getHistory().length).toBe(1);
+  });
+
+  it('should floor fractional maxHistorySize', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider({ maxHistorySize: 3.9 });
+
+    for (let i = 0; i < 10; i++) {
+      vi.setSystemTime(new Date('2026-02-21T12:00:00Z').getTime() + i * 1000);
+      provider.getCurrentData();
+    }
+
+    expect(provider.getHistory().length).toBe(3);
+  });
+
+  it('should throw on Infinity maxHistorySize', () => {
+    expect(() => new SimulatedMarketDataProvider({ maxHistorySize: Infinity })).toThrow(RangeError);
+    expect(() => new SimulatedMarketDataProvider({ maxHistorySize: -Infinity })).toThrow(RangeError);
+  });
+
+  it('should handle injectDip(0) — no price change', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider();
+    provider.getCurrentData(); // price = 100
+
+    provider.injectDip(0);
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBe(100);
+  });
+
+  it('should handle injectRally(0) — no price change', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const provider = new SimulatedMarketDataProvider();
+    provider.getCurrentData(); // price = 100
+
+    provider.injectRally(0);
+    const history = provider.getHistory();
+    const lastEntry = history[history.length - 1];
+    expect(lastEntry.price).toBe(100);
+  });
 });

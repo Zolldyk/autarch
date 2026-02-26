@@ -110,6 +110,27 @@ function resolveEndpoints(config: ResilientRpcConfig): string[] {
   return [config.rpcUrl ?? process.env.RPC_URL ?? DEFAULT_RPC_URL];
 }
 
+/**
+ * Create a resilient Solana RPC client with automatic endpoint rotation,
+ * exponential backoff retries, and simulation mode fallback.
+ *
+ * The client implements a three-mode state machine: normal → degraded → simulation.
+ * When all endpoints are exhausted, transactions are logged but not sent.
+ * Health checks automatically recover to normal mode when the primary endpoint responds.
+ *
+ * @param config - RPC configuration including endpoints, retry settings, and callbacks.
+ * @returns A frozen RpcClient with balance, transaction, airdrop, and cleanup methods.
+ *
+ * @example
+ * ```typescript
+ * import { createRpcClient } from '@autarch/core';
+ *
+ * const rpc = createRpcClient({ rpcUrl: 'https://api.devnet.solana.com' });
+ * const balance = await rpc.getBalance('So1ana...');
+ * // balance.sol — SOL amount, balance.lamports — raw lamports
+ * rpc.cleanup();
+ * ```
+ */
 export function createRpcClient(config: ResilientRpcConfig): RpcClient {
   const endpoints = resolveEndpoints(config);
   const maxRetries = Math.max(0, config.maxRetries ?? MAX_RETRY_ATTEMPTS);
