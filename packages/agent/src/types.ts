@@ -125,7 +125,7 @@ export interface ConditionResult {
 export interface RuleEvaluation {
   readonly ruleIndex: number;
   readonly ruleName: string;
-  readonly conditions: ConditionResult[];
+  readonly conditions: readonly ConditionResult[];
   readonly matched: boolean;
   readonly score: number;
   readonly cooldown?: 'active' | 'clear';
@@ -226,6 +226,16 @@ export interface DecisionModule {
   reset?(): void;
 }
 
+/** Parameters for an action execution request. */
+export interface ActionExecution {
+  readonly action: RuleAction;
+  readonly amount: number;
+  readonly agentId: number;
+}
+
+/** Callback that executes a decided action on-chain and returns the result. */
+export type ExecuteAction = (execution: ActionExecution) => Promise<TraceExecution>;
+
 /** Possible lifecycle states of an agent. */
 export type AgentStatus = 'idle' | 'active' | 'cooldown' | 'error' | 'stopped';
 
@@ -291,6 +301,7 @@ export interface AgentRuntimeOptions {
     readonly configPath?: string;
     readonly wallet: AgentWallet;
     readonly getBalance: () => Promise<Balance>;
+    readonly executeAction?: ExecuteAction;
   }>;
   /** Shared market data provider for all agents. If not provided, a SimulatedMarketDataProvider is used. */
   readonly marketProvider?: MarketDataProvider;

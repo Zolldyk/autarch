@@ -193,6 +193,11 @@ Top-level wallet factory result. All key material is trapped in closure scope.
 | `getBalance` | `(agentId: number) => Promise<Balance>` | Get SOL balance for an agent |
 | `signTransaction` | `(agentId: number, tx: TransactionToSign) => Promise<TransactionResult>` | Sign and submit a transaction |
 | `distributeSol` | `(toAgentId: number, amountLamports: bigint) => Promise<TransactionResult>` | Transfer SOL from treasury to agent |
+| `transferSol` | `(fromAgentId: number, toAddress: string, amountLamports: bigint) => Promise<TransactionResult>` | Transfer SOL from any agent to any address |
+| `createTokenMint` | `(decimals?: number) => Promise<MintInfo>` | Create a new SPL token mint (treasury is mint authority) |
+| `mintTokens` | `(mintAddress: string, toAgentId: number, amount: bigint) => Promise<TransactionResult>` | Mint SPL tokens to an agent's ATA |
+| `getTokenBalance` | `(mintAddress: string, agentId: number) => Promise<TokenBalance>` | Get SPL token balance for an agent |
+| `transferTokens` | `(mintAddress: string, fromAgentId: number, toAgentId: number, amount: bigint, decimals: number) => Promise<TransactionResult>` | Transfer SPL tokens between agents |
 | `requestAirdrop` | `(agentId: number, amountLamports?: bigint) => Promise<string>` | Request devnet airdrop |
 | `cleanup` | `() => void` | Stop health check timers |
 
@@ -219,6 +224,8 @@ Frozen wallet handle exposed to agent code. No key material accessible — only 
 | `RpcConfig` | `{ rpcUrl?: string; rpcEndpoints?: readonly string[] }` |
 | `ResilientRpcConfig` | `RpcConfig & { endpoints?: readonly string[]; maxRetries?: number; baseDelayMs?: number; healthCheckIntervalMs?: number; onSimulationModeChange?: ... }` |
 | `ConnectionMode` | `'normal' \| 'degraded' \| 'simulation'` |
+| `TokenBalance` | `{ mint: string; amount: bigint; decimals: number; uiAmount: number }` |
+| `MintInfo` | `{ mintAddress: string; decimals: number }` |
 
 **Constants:**
 
@@ -579,7 +586,7 @@ const runtime = new AgentRuntime({
 | `AgentState` | Agent snapshot: agentId, name, strategy, status, address, balance, lastAction, traceHistory, etc. |
 | `AgentStatus` | `'idle' \| 'active' \| 'cooldown' \| 'error' \| 'stopped'` |
 | `AgentLifecycleEvent` | `{ agentId: number; event: 'started' \| 'stopped' \| 'auto-stopped' \| 'error'; timestamp: number; reason?: string }` |
-| `AgentRuntimeOptions` | `{ agents: ReadonlyArray<{...}>; marketProvider?: MarketDataProvider; decisionModule?: DecisionModule }` |
+| `AgentRuntimeOptions` | `{ agents: ReadonlyArray<{...; executeAction?: ExecuteAction}>; marketProvider?: MarketDataProvider; decisionModule?: DecisionModule }` |
 | `MarketData` | `{ price: number; priceChange1m: number; priceChange5m: number; volumeChange1m: number; timestamp: number; source: MarketDataSource }` |
 | `MarketDataProvider` | Interface: `getCurrentData()`, `getSnapshot()`, `getHistory()`, `injectDip()`, `injectRally()`, `resetToBaseline()` |
 | `MarketDataSource` | `'simulated' \| 'injected'` |
@@ -589,6 +596,8 @@ const runtime = new AgentRuntime({
 | `EngineResult` | `{ evaluations: RuleEvaluation[]; decision: { action: RuleAction; reason: string; amount?: number; ... } }` |
 | `DecisionTrace` | `{ timestamp: number; agentId: number; marketData: MarketData; evaluations: readonly RuleEvaluation[]; decision: {...}; execution?: TraceExecution }` |
 | `TraceExecution` | `{ status: 'confirmed' \| 'simulated' \| 'failed'; signature?: string; mode: ConnectionMode; error?: string }` |
+| `ActionExecution` | `{ action: RuleAction; amount: number; agentId: number }` |
+| `ExecuteAction` | `(execution: ActionExecution) => Promise<TraceExecution>` |
 | `RulesReloadedEvent` | `{ agentId: number; success: boolean; error?: string; timestamp: number }` |
 | `MarketUpdateEvent` | `{ marketData: MarketData; timestamp: number }` |
 | `SimulationModeEvent` | `{ active: boolean; reason: string; timestamp: number }` |
@@ -1002,7 +1011,9 @@ try {
           { "name": "AgentState", "definition": "{ readonly agentId: number; readonly name: string; readonly strategy: string; readonly status: AgentStatus; readonly address: string; readonly balance: number; readonly lastAction: string | null; readonly lastActionTimestamp: number | null; readonly consecutiveErrors: number; readonly tickCount: number; readonly lastError: string | null; readonly positionSize: number; readonly consecutiveWins: number; readonly lastTradeAmount: number; readonly lastDecision?: DecisionTrace; readonly traceHistory: readonly DecisionTrace[] }" },
           { "name": "AgentStatus", "definition": "'idle' | 'active' | 'cooldown' | 'error' | 'stopped'" },
           { "name": "AgentLifecycleEvent", "definition": "{ readonly agentId: number; readonly event: 'started' | 'stopped' | 'auto-stopped' | 'error'; readonly timestamp: number; readonly reason?: string }" },
-          { "name": "AgentRuntimeOptions", "definition": "{ readonly agents: ReadonlyArray<{ readonly agentId: number; readonly config: AgentConfig; readonly configPath?: string; readonly wallet: AgentWallet; readonly getBalance: () => Promise<Balance> }>; readonly marketProvider?: MarketDataProvider; readonly decisionModule?: DecisionModule }" },
+          { "name": "ActionExecution", "definition": "{ readonly action: RuleAction; readonly amount: number; readonly agentId: number }" },
+          { "name": "ExecuteAction", "definition": "(execution: ActionExecution) => Promise<TraceExecution>" },
+          { "name": "AgentRuntimeOptions", "definition": "{ readonly agents: ReadonlyArray<{ readonly agentId: number; readonly config: AgentConfig; readonly configPath?: string; readonly wallet: AgentWallet; readonly getBalance: () => Promise<Balance>; readonly executeAction?: ExecuteAction }>; readonly marketProvider?: MarketDataProvider; readonly decisionModule?: DecisionModule }" },
           { "name": "MarketData", "definition": "{ readonly price: number; readonly priceChange1m: number; readonly priceChange5m: number; readonly volumeChange1m: number; readonly timestamp: number; readonly source: MarketDataSource }" },
           { "name": "MarketDataSource", "definition": "'simulated' | 'injected'" },
           { "name": "EvaluationContext", "definition": "{ readonly agentState: AgentState; readonly marketData: MarketData; readonly rules: readonly Rule[]; readonly peerStates?: readonly AgentState[] }" },

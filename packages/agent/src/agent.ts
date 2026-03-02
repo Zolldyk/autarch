@@ -1,5 +1,6 @@
 import type { AgentWallet, Balance } from '@autarch/core';
-import type { AgentConfig, AgentState, AgentStatus, AgentLifecycleEvent, MarketDataProvider, DecisionModule, DecisionTrace, EvaluationContext } from './types.js';
+import type { AgentConfig, AgentState, AgentStatus, AgentLifecycleEvent, MarketDataProvider, DecisionModule, DecisionTrace, EvaluationContext, ExecuteAction } from './types.js';
+import { buildDecisionTrace } from './trace.js';
 import { DEFAULT_INTERVAL_MS, MAX_CONSECUTIVE_ERRORS, MAX_TRACE_HISTORY } from './constants.js';
 
 /**
@@ -28,6 +29,7 @@ export class Agent {
   private readonly onAutoStop: (event: AgentLifecycleEvent) => void;
   private readonly onError: (event: AgentLifecycleEvent) => void;
   private readonly ownsDecisionModule: boolean;
+  private readonly executeAction?: ExecuteAction;
 
   private status: AgentStatus = 'idle';
   private balance = 0;
@@ -55,6 +57,7 @@ export class Agent {
     onError: (event: AgentLifecycleEvent) => void,
     decisionModule: DecisionModule,
     ownsDecisionModule: boolean = true,
+    executeAction?: ExecuteAction,
   ) {
     this.agentId = agentId;
     this.config = config;
@@ -67,6 +70,7 @@ export class Agent {
     this.onError = onError;
     this.decisionModule = decisionModule;
     this.ownsDecisionModule = ownsDecisionModule;
+    this.executeAction = executeAction;
   }
 
   /**
@@ -212,7 +216,39 @@ export class Agent {
       // Step 5: Delegate to decision module
       const decision = await this.decisionModule.evaluate(context);
 
-      // Step 6: Process decision
+      // Step 6: Execute action on-chain if callback provided
+      let trace = decision.trace;
+      if (decision.action !== 'none' && decision.amount && this.executeAction) {
+        try {
+          const execution = await this.executeAction({
+            action: decision.action,
+            amount: decision.amount,
+            agentId: this.agentId,
+          });
+          // Update trade metrics on success
+          this.lastTradeAmount = decision.amount;
+          this.consecutiveWins++;
+          this.positionSize = Math.min(100, this.positionSize + decision.amount * 10);
+          // Rebuild trace with execution result
+          trace = buildDecisionTrace(
+            this.agentId,
+            { evaluations: [...decision.trace.evaluations], decision: { ...decision.trace.decision } },
+            decision.trace.marketData,
+            execution,
+          );
+        } catch (execError: unknown) {
+          const execMessage = execError instanceof Error ? execError.message : String(execError);
+          this.consecutiveWins = 0;
+          trace = buildDecisionTrace(
+            this.agentId,
+            { evaluations: [...decision.trace.evaluations], decision: { ...decision.trace.decision } },
+            decision.trace.marketData,
+            { status: 'failed', error: execMessage, mode: 'degraded' },
+          );
+        }
+      }
+
+      // Step 7: Process decision
       if (decision.action !== 'none') {
         const score = decision.trace.decision.score;
         this.lastAction = `${decision.action} ${decision.amount ?? 0} SOL${score !== undefined ? ` (score: ${score})` : ''}`;
@@ -220,15 +256,15 @@ export class Agent {
         this.lastAction = `none: ${decision.reason}`;
       }
 
-      // Step 7: Store trace and accumulate history
-      this.lastDecision = decision.trace;
-      this.traceHistory.push(decision.trace);
+      // Step 8: Store trace and accumulate history
+      this.lastDecision = trace;
+      this.traceHistory.push(trace);
       if (this.traceHistory.length > MAX_TRACE_HISTORY) {
         this.traceHistory.shift();
       }
       this.lastActionTimestamp = Date.now();
 
-      // Step 8: Update status
+      // Step 9: Update status
       this.status = decision.action !== 'none' ? 'active' : 'cooldown';
       this.consecutiveErrors = 0;
       this.tickCount++;

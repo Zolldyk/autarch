@@ -13,6 +13,9 @@
   - [RPC State Machine](#rpc-state-machine)
   - [Seed-to-Dashboard Data Flow](#seed-to-dashboard-data-flow)
 - [Security Model](#security-model)
+- [Trade Execution & SPL Tokens](#trade-execution--spl-tokens)
+  - [ExecuteAction Callback Pattern](#executeaction-callback-pattern)
+  - [SPL Token Architecture](#spl-token-architecture)
 - [Decision System](#decision-system)
   - [Rule Engine](#rule-engine)
   - [DecisionModule Interface](#decisionmodule-interface)
@@ -68,7 +71,7 @@ Any import of a crypto library in `@autarch/agent` or `@autarch/demo` is a lint 
 `createAutarchWallet` is a factory function — not a class. Private keys are trapped in closure scope:
 
 ```typescript
-// packages/core/src/wallet-core.ts:34-40
+// packages/core/src/wallet-core.ts:47-53
 export function createAutarchWallet(config: WalletConfig): AutarchWallet {
   // Snapshot seed bytes to prevent post-construction external mutation.
   const seed = new Uint8Array(config.seed);
@@ -174,6 +177,35 @@ Autarch's security rests on three verification layers:
 The monorepo boundary **is** the security boundary. `@autarch/core` owns all cryptography. Agent and demo packages cannot even import the libraries needed to touch keys. This is enforced by tooling, not convention.
 
 For full details — including verbatim code excerpts, reproducible shell commands, and all 14 executable test descriptions — see [SECURITY.md](SECURITY.md).
+
+## Trade Execution & SPL Tokens
+
+### ExecuteAction Callback Pattern
+
+Agents decide *what* to do (buy/sell/none); the orchestrator decides *how* to execute. The `executeAction` callback bridges this gap without breaking the security boundary:
+
+```
+Agent.tick() → DecisionModule.evaluate() → decision: { action: 'buy', amount: 0.5 }
+                                          ↓
+                              executeAction({ action: 'buy', amount: 0.5, agentId: 1 })
+                                          ↓
+                              wallet.transferSol() / wallet.transferTokens()
+                                          ↓
+                              TraceExecution { status: 'confirmed', signature: '5abc...' }
+```
+
+The callback is optional — agents without `executeAction` work identically but produce traces without execution results. This maintains backward compatibility with all existing tests.
+
+### SPL Token Architecture
+
+Token operations live in `@autarch/core` alongside SOL operations, preserving the security boundary. The `AutarchWallet` interface exposes four token methods:
+
+- **`createTokenMint(decimals?)`** — Creates a new SPL token mint. Treasury is the mint authority. Uses `getCreateAccountInstruction` + `getInitializeMintInstruction`.
+- **`mintTokens(mint, toAgentId, amount)`** — Creates the recipient's Associated Token Account (ATA) idempotently and mints tokens. Treasury signs as mint authority.
+- **`getTokenBalance(mint, agentId)`** — Derives the ATA via `findAssociatedTokenPda` and queries the balance. Returns zero if the ATA doesn't exist.
+- **`transferTokens(mint, from, to, amount, decimals)`** — Creates destination ATA idempotently + `getTransferCheckedInstruction`. The source agent signs.
+
+All token operations follow the same `sendAndConfirm` retry/simulation pattern as SOL transfers. In simulation mode, token operations return simulated results without network calls.
 
 ## Decision System
 
@@ -370,7 +402,7 @@ Autarch is a devnet prototype. Every prototype-scale choice has a documented upg
 | Local logs (in-memory) | Blockchain-anchored tamper-proof audit trail | High | High |
 | Self-audited security | Third-party professional security audit | Medium | High |
 | `SimulatedMarketDataProvider` | Real market data (Pyth/CoinGecko) via the same `MarketDataProvider` interface | Low | Medium |
-| SOL transfers only | DEX swap integration (Orca/Raydium) via the same `signTransaction` interface | Medium | Medium |
+| SOL + SPL token transfers | DEX swap integration (Orca/Raydium) via the same `signTransaction` interface | Medium | Medium |
 
 **Memory-only keys → HSM/TEE.** The closure pattern isolates keys in process memory. For production, keys should live in hardware security modules or trusted execution environments that resist even host-level compromise. The `AgentWallet` interface doesn't change — only the implementation behind `signTransaction`.
 

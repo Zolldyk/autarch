@@ -45,7 +45,9 @@ const agentConfigSchema = {
   },
 } as const;
 
-const ajv = new Ajv({ allErrors: true, useDefaults: true });
+// ajv@8 CJS/ESM interop: module.exports = Ajv class, but nodenext resolves as namespace
+const AjvClass = Ajv as unknown as new (opts: { allErrors: boolean; useDefaults: boolean }) => InstanceType<typeof Ajv.default>;
+const ajv = new AjvClass({ allErrors: true, useDefaults: true });
 const validate = ajv.compile(agentConfigSchema);
 
 /**

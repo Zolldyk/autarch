@@ -85,19 +85,26 @@ const agentWallet: AgentWallet = Object.freeze({
 The `AutarchWallet` factory result is also frozen:
 
 ```typescript
-// packages/core/src/wallet-core.ts:277-287
+// packages/core/src/wallet-core.ts:545-561
 return Object.freeze({
   getAgent,
   getAddress,
   getBalance,
   signTransaction: walletSignTransaction,
   distributeSol,
+  transferSol,
+  createTokenMint,
+  mintTokens,
+  getTokenBalance,
+  transferTokens,
   requestAirdrop: walletRequestAirdrop,
   cleanup(): void {
     rpcClient.cleanup();
   },
 });
 ```
+
+The `executeAction` callback is passed to agents via `AgentRuntimeOptions` — it never touches key material. Agents call it with `{ action, amount, agentId }`, and the implementation (provided by the orchestrator) calls wallet methods on their behalf. This preserves the security boundary: agents decide *what* to do, the orchestrator executes *how*.
 
 ### Verify It Yourself
 
@@ -108,8 +115,8 @@ grep -n "Object.freeze" packages/core/src/wallet-core.ts
 Expected output:
 
 ```
-152:      const agentWallet: AgentWallet = Object.freeze({
-277:  return Object.freeze({
+165:      const agentWallet: AgentWallet = Object.freeze({
+545:  return Object.freeze({
 ```
 
 ## Claim 2: No Key Logging

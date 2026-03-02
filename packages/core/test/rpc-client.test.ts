@@ -6,6 +6,8 @@ const mockGetLatestBlockhashSend = vi.fn();
 const mockSendAndConfirmFn = vi.fn();
 const mockRequestAirdropSend = vi.fn();
 const mockGetHealthSend = vi.fn();
+const mockGetMinimumBalanceForRentExemptionSend = vi.fn();
+const mockGetTokenAccountBalanceSend = vi.fn();
 let originalRpcUrl: string | undefined;
 let originalRpcEndpoints: string | undefined;
 
@@ -18,6 +20,8 @@ vi.mock('@solana/kit', async () => {
       getLatestBlockhash: vi.fn(() => ({ send: mockGetLatestBlockhashSend })),
       requestAirdrop: vi.fn(() => ({ send: mockRequestAirdropSend })),
       getHealth: vi.fn(() => ({ send: mockGetHealthSend })),
+      getMinimumBalanceForRentExemption: vi.fn(() => ({ send: mockGetMinimumBalanceForRentExemptionSend })),
+      getTokenAccountBalance: vi.fn(() => ({ send: mockGetTokenAccountBalanceSend })),
     })),
     createSolanaRpcSubscriptions: vi.fn(() => ({})),
     sendAndConfirmTransactionFactory: vi.fn(() => mockSendAndConfirmFn),
@@ -1736,6 +1740,81 @@ describe('simulation entry during specific operations', () => {
     mockGetHealthSend.mockResolvedValue('ok');
     await vi.advanceTimersByTimeAsync(1000);
     expect(callback).toHaveBeenCalledWith(false, expect.any(String));
+
+    client.cleanup();
+    vi.useRealTimers();
+  });
+});
+
+// ─── Token-Related RPC Methods ──────────────────────────────────────────
+
+describe('getMinimumBalanceForRentExemption', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.RPC_URL;
+    delete process.env.RPC_ENDPOINTS;
+  });
+
+  it('returns rent exemption amount from RPC', async () => {
+    mockGetMinimumBalanceForRentExemptionSend.mockResolvedValue(1_461_600n);
+    const client = createRpcClient(DEFAULT_CONFIG);
+    const result = await client.getMinimumBalanceForRentExemption(82n);
+    expect(result).toBe(1_461_600n);
+  });
+
+  it('returns approximation in simulation mode', async () => {
+    vi.useFakeTimers();
+    const client = createRpcClient({
+      rpcUrl: 'https://primary.example.com',
+      maxRetries: 0,
+      baseDelayMs: 1,
+    });
+
+    await triggerSimulationMode(client, mockGetBalanceSend);
+    expect(client.getConnectionMode()).toBe('simulation');
+
+    const result = await client.getMinimumBalanceForRentExemption(82n);
+    expect(typeof result).toBe('bigint');
+    expect(result).toBeGreaterThan(0n);
+
+    client.cleanup();
+    vi.useRealTimers();
+  });
+});
+
+describe('getTokenAccountBalance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.RPC_URL;
+    delete process.env.RPC_ENDPOINTS;
+  });
+
+  it('returns token balance from RPC', async () => {
+    mockGetTokenAccountBalanceSend.mockResolvedValue({
+      value: { amount: '1000000000', decimals: 9, uiAmount: 1.0 },
+    });
+    const client = createRpcClient(DEFAULT_CONFIG);
+    const result = await client.getTokenAccountBalance('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    expect(result.amount).toBe(1000000000n);
+    expect(result.decimals).toBe(9);
+    expect(result.uiAmount).toBe(1.0);
+  });
+
+  it('returns zero in simulation mode', async () => {
+    vi.useFakeTimers();
+    const client = createRpcClient({
+      rpcUrl: 'https://primary.example.com',
+      maxRetries: 0,
+      baseDelayMs: 1,
+    });
+
+    await triggerSimulationMode(client, mockGetBalanceSend);
+    expect(client.getConnectionMode()).toBe('simulation');
+
+    const result = await client.getTokenAccountBalance('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    expect(result.amount).toBe(0n);
+    expect(result.decimals).toBe(9);
+    expect(result.uiAmount).toBe(0);
 
     client.cleanup();
     vi.useRealTimers();

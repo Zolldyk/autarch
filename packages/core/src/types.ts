@@ -42,8 +42,27 @@ export interface AutarchWallet {
   getBalance(agentId: number): Promise<Balance>;
   signTransaction(agentId: number, tx: TransactionToSign): Promise<TransactionResult>;
   distributeSol(toAgentId: number, amountLamports: bigint): Promise<TransactionResult>;
+  transferSol(fromAgentId: number, toAddress: string, amountLamports: bigint): Promise<TransactionResult>;
+  createTokenMint(decimals?: number): Promise<MintInfo>;
+  mintTokens(mintAddress: string, toAgentId: number, amount: bigint): Promise<TransactionResult>;
+  getTokenBalance(mintAddress: string, agentId: number): Promise<TokenBalance>;
+  transferTokens(mintAddress: string, fromAgentId: number, toAgentId: number, amount: bigint, decimals: number): Promise<TransactionResult>;
   requestAirdrop(agentId: number, amountLamports?: bigint): Promise<string>;
   cleanup(): void;
+}
+
+/** SPL token balance for an agent wallet. */
+export interface TokenBalance {
+  readonly mint: string;
+  readonly amount: bigint;
+  readonly decimals: number;
+  readonly uiAmount: number;
+}
+
+/** Result of creating a new SPL token mint. */
+export interface MintInfo {
+  readonly mintAddress: string;
+  readonly decimals: number;
 }
 
 /** Configuration for creating an AutarchWallet. */

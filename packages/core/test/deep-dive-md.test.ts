@@ -200,15 +200,15 @@ describe('DEEP-DIVE.md — code excerpt accuracy', () => {
     expect(docContent).toBe(sourceExcerpt);
   });
 
-  it('createAutarchWallet excerpt matches source (wallet-core.ts:34-40)', () => {
+  it('createAutarchWallet excerpt matches source (wallet-core.ts:47-53)', () => {
     const source = readProject('packages/core/src/wallet-core.ts');
     const sourceLines = source.split('\n');
-    const sourceExcerpt = sourceLines.slice(33, 40).join('\n').trim();
+    const sourceExcerpt = sourceLines.slice(46, 53).join('\n').trim();
 
-    const docBlock = extractCodeBlock(deepDive, '// packages/core/src/wallet-core.ts:34-40');
+    const docBlock = extractCodeBlock(deepDive, '// packages/core/src/wallet-core.ts:47-53');
     const docContent = docBlock
       .split('\n')
-      .filter(l => !l.startsWith('// packages/core/src/wallet-core.ts:34-40'))
+      .filter(l => !l.startsWith('// packages/core/src/wallet-core.ts:47-53'))
       .join('\n')
       .trim();
 

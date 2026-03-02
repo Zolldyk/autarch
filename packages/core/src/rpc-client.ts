@@ -85,6 +85,8 @@ export interface RpcClient {
     options?: { simulationLabel?: string },
   ): Promise<TransactionResult | void>;
   getLatestBlockhash(): Promise<{ blockhash: Blockhash; lastValidBlockHeight: bigint }>;
+  getMinimumBalanceForRentExemption(space: bigint): Promise<bigint>;
+  getTokenAccountBalance(ata: string): Promise<{ amount: bigint; decimals: number; uiAmount: number }>;
   requestAirdrop(addr: string, amount: bigint): Promise<string>;
   getConnectionMode(): ConnectionMode;
   cleanup(): void;
@@ -375,6 +377,56 @@ export function createRpcClient(config: ResilientRpcConfig): RpcClient {
             blockhash: '11111111111111111111111111111111' as Blockhash,
             lastValidBlockHeight: 0n,
           };
+        }
+        throw error;
+      }
+    },
+
+    async getMinimumBalanceForRentExemption(space: bigint): Promise<bigint> {
+      if (mode === 'simulation') {
+        // Approximate: base rent exemption for typical accounts
+        return BigInt(Math.ceil(Number(space) * 6960 + 2_039_280));
+      }
+      try {
+        return await withRetry(
+          'RPC request for rent exemption',
+          async () => {
+            const result = await rpc.getMinimumBalanceForRentExemption(space).send();
+            return result;
+          },
+          '[RPC_REQUEST_ERROR]',
+          'Check the request parameters.',
+        );
+      } catch (error: unknown) {
+        if (isSimulationMode()) {
+          return BigInt(Math.ceil(Number(space) * 6960 + 2_039_280));
+        }
+        throw error;
+      }
+    },
+
+    async getTokenAccountBalance(ata: string): Promise<{ amount: bigint; decimals: number; uiAmount: number }> {
+      if (mode === 'simulation') {
+        return { amount: 0n, decimals: 9, uiAmount: 0 };
+      }
+      try {
+        return await withRetry(
+          'RPC request for token balance',
+          async () => {
+            const result = await rpc.getTokenAccountBalance(address(ata)).send();
+            const info = result.value;
+            return {
+              amount: BigInt(info.amount),
+              decimals: info.decimals,
+              uiAmount: info.uiAmount ?? 0,
+            };
+          },
+          '[RPC_REQUEST_ERROR]',
+          'Check the request parameters.',
+        );
+      } catch (error: unknown) {
+        if (isSimulationMode()) {
+          return { amount: 0n, decimals: 9, uiAmount: 0 };
         }
         throw error;
       }

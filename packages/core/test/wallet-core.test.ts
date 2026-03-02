@@ -19,6 +19,8 @@ vi.mock('../src/rpc-client.js', () => ({
     requestAirdrop: mockRequestAirdrop,
     getConnectionMode: mockGetConnectionMode,
     cleanup: mockCleanup,
+    getMinimumBalanceForRentExemption: vi.fn().mockResolvedValue(1_461_600n),
+    getTokenAccountBalance: vi.fn().mockResolvedValue({ amount: 0n, decimals: 9, uiAmount: 0 }),
   })),
 }));
 
@@ -40,6 +42,16 @@ vi.mock('@solana/kit', async () => {
 const mockGetTransferSolInstruction = vi.fn().mockReturnValue({ mock: 'transferInstruction' });
 vi.mock('@solana-program/system', () => ({
   getTransferSolInstruction: (...args: unknown[]) => mockGetTransferSolInstruction(...args),
+  getCreateAccountInstruction: vi.fn().mockReturnValue({ mock: 'createAccountInstruction' }),
+}));
+
+vi.mock('@solana-program/token', () => ({
+  getInitializeMintInstruction: vi.fn().mockReturnValue({ mock: 'initMintInstruction' }),
+  getMintToInstruction: vi.fn().mockReturnValue({ mock: 'mintToInstruction' }),
+  getTransferCheckedInstruction: vi.fn().mockReturnValue({ mock: 'transferCheckedInstruction' }),
+  getCreateAssociatedTokenIdempotentInstructionAsync: vi.fn().mockResolvedValue({ mock: 'createAtaInstruction' }),
+  findAssociatedTokenPda: vi.fn().mockResolvedValue(['mockAtaAddress', 255]),
+  TOKEN_PROGRAM_ADDRESS: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
 }));
 
 const { createAutarchWallet } = await import('../src/wallet-core.js');
@@ -78,18 +90,23 @@ describe('createAutarchWallet', () => {
     mockGetTransferSolInstruction.mockReturnValue({ mock: 'transferInstruction' });
   });
 
-  // 5.2: returns object with exactly 7 methods (adds cleanup lifecycle hook)
-  it('returns an object with exactly 7 methods', () => {
+  // 5.2: returns object with exactly 12 methods (adds transferSol, token operations)
+  it('returns an object with exactly 12 methods', () => {
     const wallet = createAutarchWallet(config);
     const keys = Object.keys(wallet).sort();
-    expect(keys).toEqual(['cleanup', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
-    expect(Object.getOwnPropertyNames(wallet).sort()).toEqual(['cleanup', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
+    expect(keys).toEqual(['cleanup', 'createTokenMint', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'getTokenBalance', 'mintTokens', 'requestAirdrop', 'signTransaction', 'transferSol', 'transferTokens']);
+    expect(Object.getOwnPropertyNames(wallet).sort()).toEqual(['cleanup', 'createTokenMint', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'getTokenBalance', 'mintTokens', 'requestAirdrop', 'signTransaction', 'transferSol', 'transferTokens']);
     expect(Object.getOwnPropertySymbols(wallet)).toHaveLength(0);
     expect(typeof wallet.getAgent).toBe('function');
     expect(typeof wallet.getAddress).toBe('function');
     expect(typeof wallet.getBalance).toBe('function');
     expect(typeof wallet.signTransaction).toBe('function');
     expect(typeof wallet.distributeSol).toBe('function');
+    expect(typeof wallet.transferSol).toBe('function');
+    expect(typeof wallet.createTokenMint).toBe('function');
+    expect(typeof wallet.mintTokens).toBe('function');
+    expect(typeof wallet.getTokenBalance).toBe('function');
+    expect(typeof wallet.transferTokens).toBe('function');
     expect(typeof wallet.requestAirdrop).toBe('function');
     expect(typeof wallet.cleanup).toBe('function');
   });

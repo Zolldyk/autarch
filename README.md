@@ -4,6 +4,8 @@ Secure, deterministic agent wallets for Solana with transparent decision-making.
 
 Autarch derives isolated wallets from a single master seed (BIP44) so autonomous agents can trade on-chain without ever seeing private keys. A JSON rule engine drives every decision, and a real-time dashboard lets you watch reasoning traces as they happen.
 
+**[Watch the quick demo (2 min)](https://www.loom.com/share/beecb92721004133b4e01d4a8c1fb07b)**
+
 ## Choose Your Path
 
 | Time | What You'll Do | What You'll See |
@@ -83,6 +85,8 @@ Start with the 2-minute steps above, then explore:
 
 - **HD wallet derivation (BIP44)** — All agent wallets are derived from a single master seed using standard derivation paths. Each agent gets its own keypair deterministically.
 - **Agent-blind key isolation** — Agents never see private keys. The core wallet SDK signs transactions on their behalf, enforcing security boundaries.
+- **On-chain trade execution** — Agents execute decisions as real Solana transactions via an `executeAction` callback. SOL transfers and SPL token operations produce verifiable on-chain signatures.
+- **SPL token support** — Create token mints, mint tokens to agents, query token balances, and transfer tokens between agents — all through the `AutarchWallet` API.
 - **Rule engine** — JSON config files define agent behavior with compound conditions (AND/OR/NOT), weighted scoring, cooldowns, and optional inter-agent dependencies. Configs hot-reload on file change.
 - **Real-time dashboard (SSE)** — A server-sent events stream pushes agent state, reasoning traces, and trade activity to the browser in real time.
 

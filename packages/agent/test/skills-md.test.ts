@@ -35,6 +35,8 @@ const TYPE_ONLY_EXPORTS = [
   'MarketUpdateEvent',
   'SimulationModeEvent',
   'SimulatedProviderOptions',
+  'ActionExecution',
+  'ExecuteAction',
 ];
 
 let skillsContent: string;

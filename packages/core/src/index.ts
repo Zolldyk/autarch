@@ -25,4 +25,6 @@ export type {
   TransactionToSign,
   TransactionResult,
   ConnectionMode,
+  TokenBalance,
+  MintInfo,
 } from './types.js';

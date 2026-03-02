@@ -1015,4 +1015,39 @@ describe('AgentRuntime', () => {
     expect(marketEvents).toHaveLength(1);
     expect(simEvents).toHaveLength(1);
   });
+
+  it('passes executeAction from options to Agent', async () => {
+    vi.useFakeTimers();
+    const mockExecute = vi.fn().mockResolvedValue({
+      status: 'confirmed',
+      signature: 'test-sig',
+      mode: 'normal',
+    });
+
+    const options: AgentRuntimeOptions = {
+      agents: [
+        {
+          agentId: 1,
+          config: makeConfig({ name: 'Executor' }),
+          wallet: makeMockWallet('exec-addr'),
+          getBalance: makeMockGetBalance(2.0),
+          executeAction: mockExecute,
+        },
+      ],
+      marketProvider: makeMockMarketProvider(),
+    };
+    const runtime = new AgentRuntime(options);
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Agent should have called executeAction on buy decision
+    expect(mockExecute).toHaveBeenCalledOnce();
+    expect(mockExecute).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'buy',
+      agentId: 1,
+    }));
+
+    runtime.stop();
+    vi.useRealTimers();
+  });
 });

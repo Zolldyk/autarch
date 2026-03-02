@@ -34,5 +34,7 @@ export type {
   RulesReloadedEvent,
   MarketUpdateEvent,
   SimulationModeEvent,
+  ActionExecution,
+  ExecuteAction,
 } from './types.js';
 export { DEFAULT_INTERVAL_MS, DEFAULT_EXECUTION_THRESHOLD, MAX_TRACE_HISTORY } from './constants.js';

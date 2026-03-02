@@ -90,7 +90,7 @@ describe('AgentWallet key isolation', () => {
   // 6.10: Object.keys(autarchWallet) returns only public method names
   it('Object.keys(autarchWallet) returns only public method names', () => {
     const wallet = createAutarchWallet(config);
-    expect(Object.keys(wallet).sort()).toEqual(['cleanup', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'requestAirdrop', 'signTransaction']);
+    expect(Object.keys(wallet).sort()).toEqual(['cleanup', 'createTokenMint', 'distributeSol', 'getAddress', 'getAgent', 'getBalance', 'getTokenBalance', 'mintTokens', 'requestAirdrop', 'signTransaction', 'transferSol', 'transferTokens']);
   });
 
   // 6.11: JSON.stringify(autarchWallet) contains no key material

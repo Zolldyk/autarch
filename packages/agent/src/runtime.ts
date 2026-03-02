@@ -58,6 +58,7 @@ export class AgentRuntime extends EventEmitter {
         onError,
         decisionModule,
         ownsDecisionModule,
+        entry.executeAction,
       );
 
       this.agents.set(entry.agentId, agent);
