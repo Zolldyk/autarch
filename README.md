@@ -4,8 +4,6 @@ Secure, deterministic agent wallets for Solana with transparent decision-making.
 
 Autarch derives isolated wallets from a single master seed (BIP44) so autonomous agents can trade on-chain without ever seeing private keys. A JSON rule engine drives every decision, and a real-time dashboard lets you watch reasoning traces as they happen.
 
-**[Watch the quick demo (2 min)](https://www.loom.com/share/beecb92721004133b4e01d4a8c1fb07b)**
-
 ## Choose Your Path
 
 | Time | What You'll Do | What You'll See |
